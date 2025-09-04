@@ -20,4 +20,5 @@ from . core import ( P2R,
                    Z_Ph_E_conv,
                    Z_Ph_E,
                    R_Ph_E,
-                   X_Ph_E)
+                   X_Ph_E,
+                   find_idx)

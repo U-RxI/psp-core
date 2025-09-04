@@ -716,6 +716,32 @@ def X_Ph_E(U_Ph_E : complex, IL : complex, IE : complex, RE_RL : float, XE_XL : 
         /(IR.real * IX.real + IR.imag * IX.imag) # (3-49)
     return Xph_E
 
+def find_idx(array : Iterable, value : float) -> int:
+    """
+    Function to find the equivalent index to a specific time in a array representing time
+
+    Parameters
+    ----------
+    array : Iterable
+        Array like object representing time
+    value : float
+
+    Returns
+    -------
+    int : nearest index to the given time value
+
+    Example
+    -------
+    >>> find_idx([0, 0.1, 0.2, 0.3, 0.4], 3)
+    3
+    >>> find_idx([0, 0.1, 0.2, 0.3, 0.4], 0.12)
+    1
+    """
+    n = [abs(i-value) for i in array]
+    idx = n.index(min(n))
+    return idx
+
+
 def Z_Ph(Ux, Uy, Ix, Iy):
     pass
 
