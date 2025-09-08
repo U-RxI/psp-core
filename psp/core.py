@@ -7,9 +7,6 @@ Created on Thu Mar 10 09:14:56 2022
 
 from cmath import cos, sin, pi, phase
 from collections.abc import Iterable
-from numpy import linspace
-from shapely.geometry import LineString
-
 
 def P2R(magnitude: float, angle_deg: float) -> complex:
     """Convert Polar coordinates (r, \\phi) to Rectangular form (x + 1j*y)
@@ -29,7 +26,7 @@ def P2R(magnitude: float, angle_deg: float) -> complex:
     Example
     -------
     >>> print(P2R(1, 60))
-    0.5000000000000001+0.8660254037844386j
+    (0.5000000000000001+0.8660254037844386j)
     """
 
     angle_rad = angle_deg / 180 * pi
@@ -732,7 +729,7 @@ def find_idx(array : Iterable, value : float) -> int:
 
     Example
     -------
-    >>> find_idx([0, 0.1, 0.2, 0.3, 0.4], 3)
+    >>> find_idx([0, 0.1, 0.2, 0.3, 0.4], 0.3)
     3
     >>> find_idx([0, 0.1, 0.2, 0.3, 0.4], 0.12)
     1
@@ -740,16 +737,6 @@ def find_idx(array : Iterable, value : float) -> int:
     n = [abs(i-value) for i in array]
     idx = n.index(min(n))
     return idx
-
-
-def Z_Ph(Ux, Uy, Ix, Iy):
-    pass
-
-def R_Ph():
-    pass
-
-def X_Ph():
-    pass
 
 def loop(UA : complex, UB : complex, UC : complex, IA : complex, IB : complex , IC : complex, RE_RL : float, XE_XL : float, IN=None):
     if IN:
@@ -767,25 +754,153 @@ def loop(UA : complex, UB : complex, UC : complex, IA : complex, IB : complex , 
     
     return Z_UA_E, Z_UB_E, Z_UC_E, Z_AB, Z_BC, Z_CA
 
-def transfer_PQ(polygon, Un):
-    t = linspace(0, 1.0, 1000)
-    linestring = LineString(polygon.exterior.coords)
-    out = list(map(lambda x: linestring.interpolate(x, normalized=True).coords, t))
+def KN_RE_RL(kn: complex, Z1: complex) -> float:
+    """
+    Function to get the equivalent RE/RL ( 1/3 * (R0/R1 - 1)) from
+    KN ( 1/3 * (Z0/Z1 - 1)).
 
-    x2 = []
-    y2 = []
-    for p in out:
-        if 0 in list(*p):
-            continue
-        xp = P(Un, *p) / 1e6
-        xq = Q(Un, *p) / 1e6
-        x2.append(xp)
-        y2.append(xq)
-    
-    return x2, y2
+    Parameters
+    ----------
+    kn : complex
+        The residual compensation factor in complex form 1/3 * (Z0/Z1 - 1).
+    Z1 : complex
+        Positive sequence impedance of the line either as Ohm/km or just total
+        impedance.
 
-def P(U, Z):
-    return abs(U)**2 / abs(complex(*Z))**2 * Z[0]
+    Returns
+    -------
+    float
+        The real part of the residual compensation factor
+        RE/RL ( 1/3 * (R0/R1 - 1)).
 
-def Q(U, Z):
-    return abs(U)**2 / abs(complex(*Z))**2 * Z[1]
+    Example
+    -------
+    >>> KN_RE_RL(kn=(-0.102-0.178j), Z1=(0.059+0.35j))
+    0.9539322033898303
+
+    """
+    RE_RL = abs(kn) * cos(phase(kn) + phase(Z1)) / cos(phase(Z1))
+    return RE_RL.real
+
+
+def KN_XE_XL(kn: complex, Z1: complex) -> float:
+    """
+    Function to get the equivalent XE/XL ( 1/3 * (X0/X1 - 1)) from
+    KN ( 1/3 * (Z0/Z1 - 1)).
+
+    Parameters
+    ----------
+    kn : complex
+        The residual compensation factor in complex form 1/3 * (Z0/Z1 - 1).
+    Z1 : complex
+        Positive sequence impedance of the line either as Ohm/km or just total
+        impedance.
+
+    Returns
+    -------
+    float
+        The imaginary part of the residual compensation factor
+        XE/XL ( 1/3 * (X0/X1 - 1)).
+
+    Example
+    -------
+    >>> KN_XE_XL(kn=(-0.102-0.178j), Z1=(0.059+0.35j))
+    -0.13200571428571428
+
+    """
+    XE_XL = abs(kn) * sin(phase(kn) + phase(Z1)) / sin(phase(Z1))
+    return XE_XL.real
+
+
+def conv_kn(RE_RL: float, XE_XL: float, Z1: complex) -> complex:
+    """
+    Function to convert the residual compensation factor in the form of
+    RE/RL ( 1/3 * (R0/R1 - 1)) and XE/RL ( 1/3 * (X0/X1 - 1)) to
+    KN (1/3 * (Z0/Z1 - 1)).
+
+    Parameters
+    ----------
+    RE_RL : float
+        The real part of the residual compensation factor
+        RE/RL ( 1/3 * (R0/R1 - 1)).
+    XE_XL : float
+        The imaginary part of the residual compensation factor
+        XE/XL ( 1/3 * (X0/X1 - 1)).
+    Z1 : complex
+        Positive sequence impedance of the line either as Ohm/km or just total
+        impedance.
+
+    Returns
+    -------
+    complex
+        The residual compensation factor in complex form 1/3 * (Z0/Z1 - 1).
+
+    Example
+    -------
+    >>> conv_kn(RE_RL=0.953, XE_XL=-0.132, Z1=(0.059+0.35j))
+    (-0.10202020145895016-0.1778462625316516j)
+
+    """
+    KNr = (RE_RL) * cos(phase(Z1))
+    KNx = (XE_XL) * sin(phase(Z1))
+    return (KNr + KNx * 1j) / (Z1/abs(Z1))
+
+
+def calc_kn(Z1: complex, Z0: complex) -> complex:
+    """
+    Function to calculate the residual compensation factor in complex form.
+
+    Parameters
+    ----------
+    Z1 : complex
+        Positive sequence impedance.
+    Z0 : complex
+        Zero sequence impedance.
+
+    Returns
+    -------
+    complex
+        Residual compensation factor.
+
+    """
+    return (1 / 3) * (Z0 / Z1 - 1)
+
+
+def calc_RE_RL(Z1: complex, Z0: complex) -> float:
+    """
+    Function to calculate the real part of the residual compensation RE/RL.
+
+    Parameters
+    ----------
+    Z1 : complex
+        Positive sequence impedance.
+    Z0 : complex
+        Zero sequence impedance.
+
+    Returns
+    -------
+    complex
+        The real part of the residual compensation factor.
+
+    """
+    return (1 / 3) * (Z0.real / Z1.real - 1)
+
+
+def calc_XE_XL(Z1: complex, Z0: complex) -> float:
+    """
+    Function to calculate the imaginary part of the residual compensation XE/XL.
+
+    Parameters
+    ----------
+    Z1 : complex
+        Positive sequence impedance.
+    Z0 : complex
+        Zero sequence impedance.
+
+    Returns
+    -------
+    complex
+        The imaginary part of the residual compensation factor.
+
+    """
+    return (1 / 3) * (Z0.imag / Z1.imag - 1)
